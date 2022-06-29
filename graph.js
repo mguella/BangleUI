@@ -71,13 +71,27 @@ gr.drawPolygon = function(g, data, options) {
   //options.dotCol = '#fff';
   //options.dotBg = '#00f';
   //options.dotRadius = 4;
-  options.dots = true;
+  //options.dots = true;
+
+  if (options.dots) {
+    options.y += dotRadius;
+    options.height -= dotRadius;
+  }
 
   var o = gr.drawAxes(g,data,options);
+  if (options.dots) {
+    options.y -= dotRadius;
+    options.height += dotRadius;
+    g.setClipRect(o.x, o.y-dotRadius, o.x+o.w, o.y+o.h);
+  } else {
+    g.setClipRect(o.x, o.y, o.x+o.w, o.y+o.h);
+  }
   if (options.axes || options.gridy || options.gridx) {
     o.w -= 3;
     o.h -= 4;
     o.x += 3;
+  } else {
+    //g.setClipRect(o.x, o.y, o.x+o.w, o.y+o.h);
   }
   var line = [];//[o.x, o.y+o.h];
   var poly = [];//[o.x, o.y+o.h];
@@ -207,27 +221,21 @@ gr.drawPolygon = function(g, data, options) {
   g.fillPoly(poly);
 
   g.setColor(g.theme.fg);
-  // redraw axes over the graph
-  if (options.axes || options.gridy || options.gridx) {
-    gr.drawAxes(g,data,options);
+
+  if (options.dots) {
+    // draw dots
+    line.forEach((p, i) => {
+      if (i >= data.length * 2) return;
+      if (i%2 === 0) {
+        const x = line[i];
+        const y = line[i+1] + dotRadius/2; //Math.min(line[i+1] + dotRadius/2, o.y+o.h - dotRadius/2);
+        g.setColor(dotBg);
+        g.fillCircle(x, y, dotRadius-1);
+        g.setColor(dotCol);
+        g.drawCircle(x, y, dotRadius);
+      }
+    });
   }
-
-  // if dots are not enabled, return plotting info
-  if (!options.dots) return o;
-
-  // draw dots
-  line.forEach((p, i) => {
-    if (i >= data.length * 2) return;
-    if (i%2 === 0) {
-      const x = line[i];
-      const y = line[i+1] + dotRadius/2; //Math.min(line[i+1] + dotRadius/2, o.y+o.h - dotRadius/2);
-      g.setColor(dotBg);
-      g.fillCircle(x, y, dotRadius-1);
-      g.setColor(dotCol);
-      g.drawCircle(x, y, dotRadius);
-    }
-  });
-
   function findClosest(line, point) {
     var closest = 0;
     for (var i in data){
@@ -236,11 +244,13 @@ gr.drawPolygon = function(g, data, options) {
         closest = i*2;
       }
     }
-    return { x: line[closest], y: line[closest+1] + dotRadius/2 };
+    return {
+      idx: closest/2,
+      val: data[closest/2],
+      x: line[closest],
+      y: line[closest+1] + dotRadius/2
+    };
   }
-
-  // if selectable dots are not enabled, return plotting info
-  if (!options.selectDots) return o;
 
   var selected;
   var dotsTimeout;
@@ -251,18 +261,30 @@ gr.drawPolygon = function(g, data, options) {
     g.drawLine(selected.x, o.y, selected.x, selected.y);
     g.setColor(bgCol);
     g.drawLine(selected.x, selected.y, selected.x, o.y+o.h+b);
+    //if (!
+    // restore axes
+    if (options.axes) {
+      g.setColor(g.theme.fg);
+      gr.drawAxes(g, data, options);
+    }
     // restore original dot
-    g.setColor(dotBg);
-    g.fillCircle(selected.x, selected.y, dotRadius-1);
-    g.setColor(dotCol);
-    g.drawCircle(selected.x, selected.y, dotRadius);
+    if (options.dots) {
+      g.setColor(dotBg);
+      g.fillCircle(selected.x, selected.y, dotRadius-1);
+      g.setColor(dotCol);
+      g.drawCircle(selected.x, selected.y, dotRadius);
+    }
+
     selected = null;
+    o.emit('deselected');
   }
   function drawSelection(e) {
     selected = findClosest(line, e);
     g.setColor(dotCol);
-    g.fillCircle(selected.x, selected.y, dotRadius-1);
+    if (options.dots) g.fillCircle(selected.x, selected.y, dotRadius-1);
     g.drawLine(selected.x, o.y, selected.x, o.y+o.h+b);
+
+    o.emit('selected', selected);
 
     if (dotsTimeout) clearTimeout(dotsTimeout);
     dotsTimeout = setTimeout(() => {
@@ -270,14 +292,36 @@ gr.drawPolygon = function(g, data, options) {
     }, 3000);
   }
 
-  Bangle.on('touch', (z, e) => {
+  function touchHandler(z, e) {
     if (selected) resetSelection();
     drawSelection(e);
-  });
-  Bangle.on('drag', (e) => {
+  }
+
+  function dragHandler(e) {
     resetSelection();
     drawSelection(e);
-  });
+  }
+
+  o.setSelect = function(enabled) {
+    options.select = enabled;
+    resetSelection();
+    Bangle.removeListener('touch', touchHandler);
+    Bangle.removeListener('drag', dragHandler);
+    if (enabled) {
+      Bangle.on('touch', touchHandler);
+      Bangle.on('drag', dragHandler);
+    }
+  };
+
+  // if selectable dots are enabled, start listener
+  if (options.select) {
+    o.setSelect(true);
+  }
+
+  // redraw axes over the graph
+  if (options.axes || options.gridy || options.gridx) {
+    gr.drawAxes(g, data, options);
+  }
 
   // return info that can be used for plotting extra things on the chart
   return o;
@@ -293,8 +337,9 @@ function draw() {
   }
   const st = Date.now();
   g.clear();
-  gr.drawPolygon(g, data, { y: 10, height: 50, border: 2, dotRadius: 3, selectDots: true, axes: true, gridy: 5, gridx: 5 });
+  const o = gr.drawPolygon(g, data, { y: 10, height: 50, border: 2, dotRadius: 3, select: true, dots: true });
   console.log('drawn in', Date.now() - st);
+  return o;
 }
 function timed() {
   data.push(data.shift());
@@ -303,4 +348,4 @@ function timed() {
 }
 //setInterval(timed, 1000);
 //Bangle.on('touch', draw);
-draw();
+const view = draw();
