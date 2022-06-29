@@ -16,7 +16,6 @@ function calculateIntersection(p1, p2, p3, p4) {
   
   	// down part of intersection point formula
   	var d  = c3x * c2y - c3y * c2x;
-  
   	if (d == 0) {
     	throw new Error('Number of intersection points is zero or infinity.');
     }
@@ -26,7 +25,6 @@ function calculateIntersection(p1, p2, p3, p4) {
   	var u4 = p3.x * p4.y - p3.y * p4.x; // (x3 * y4 - y3 * x4)
   
   	// intersection point formula
-  	
   	var px = (u1 * c2x - c3x * u4) / d;
   	var py = (u1 * c2y - c3y * u4) / d;
   	
@@ -57,21 +55,15 @@ function calculateIntersection(p1, p2, p3, p4) {
  *   @param options.dotRadius
  *   @param options.dotCol
  *   @param options.dotBg
+ *   @param options.select
  */
 gr.drawPolygon = function(g, data, options) {
-  // TODO: add supppor for axes (options.axes = true)
-
   options = options||{};
-  const b = options.border || 6; // border
+  const b = options.border || 6;
   const dotRadius = options.dotRadius || b;
   const dotCol = options.dotCol || options.col || g.theme.fg;
   const dotBg = options.dotBg || g.theme.bgH || g.theme.bg;
   const bgCol = options.bgCol || g.theme.bg2;
-  // draw dots on each point
-  //options.dotCol = '#fff';
-  //options.dotBg = '#00f';
-  //options.dotRadius = 4;
-  //options.dots = true;
 
   if (options.dots) {
     options.y += dotRadius;
@@ -80,8 +72,6 @@ gr.drawPolygon = function(g, data, options) {
 
   var o = gr.drawAxes(g,data,options);
   if (options.dots) {
-    options.y -= dotRadius;
-    options.height += dotRadius;
     g.setClipRect(o.x, o.y-dotRadius, o.x+o.w, o.y+o.h);
   } else {
     g.setClipRect(o.x, o.y, o.x+o.w, o.y+o.h);
@@ -90,17 +80,14 @@ gr.drawPolygon = function(g, data, options) {
     o.w -= 3;
     o.h -= 4;
     o.x += 3;
-  } else {
-    //g.setClipRect(o.x, o.y, o.x+o.w, o.y+o.h);
   }
-  var line = [];//[o.x, o.y+o.h];
-  var poly = [];//[o.x, o.y+o.h];
+  var line = [];
+  var poly = [];
   // fill polygon from actual data
   for (var i in data) {
     const x = o.getx(i);
     const y = o.gety(data[i]);
     line.push(x, y);
-    //poly.push(x, y);
   }
 
   // close polygon
@@ -138,7 +125,6 @@ gr.drawPolygon = function(g, data, options) {
     // is x
     // get siblings
     const prevY = poly[i-1];
-    // -5 to ajust x for future correction that hasn't happened yet
     const curY = poly[i+1];
     const nextY = poly[i+3];
     // check direction
@@ -228,7 +214,7 @@ gr.drawPolygon = function(g, data, options) {
       if (i >= data.length * 2) return;
       if (i%2 === 0) {
         const x = line[i];
-        const y = line[i+1] + dotRadius/2; //Math.min(line[i+1] + dotRadius/2, o.y+o.h - dotRadius/2);
+        const y = line[i+1] + dotRadius/2;
         g.setColor(dotBg);
         g.fillCircle(x, y, dotRadius-1);
         g.setColor(dotCol);
@@ -261,9 +247,9 @@ gr.drawPolygon = function(g, data, options) {
     g.drawLine(selected.x, o.y, selected.x, selected.y);
     g.setColor(bgCol);
     g.drawLine(selected.x, selected.y, selected.x, o.y+o.h+b);
-    //if (!
     // restore axes
-    if (options.axes) {
+    const axesUpdated = selected.x < o.x + dotRadius || selected.y < o.y+o.h - dotRadius;
+    if (options.axes && axesUpdated) {
       g.setColor(g.theme.fg);
       gr.drawAxes(g, data, options);
     }
@@ -337,7 +323,7 @@ function draw() {
   }
   const st = Date.now();
   g.clear();
-  const o = gr.drawPolygon(g, data, { y: 10, height: 50, border: 2, dotRadius: 3, select: true, dots: true });
+  const o = gr.drawPolygon(g, data, { y: 10, height: 50, border: 2, dotRadius: 3, select: true, dots: true, axes: true, gridy: 3, gridx: 3 });
   console.log('drawn in', Date.now() - st);
   return o;
 }
