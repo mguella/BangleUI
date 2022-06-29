@@ -74,6 +74,11 @@ gr.drawPolygon = function(g, data, options) {
   options.dots = true;
 
   var o = gr.drawAxes(g,data,options);
+  if (options.axes || options.gridy || options.gridx) {
+    o.w -= 3;
+    o.h -= 4;
+    o.x += 3;
+  }
   var line = [];//[o.x, o.y+o.h];
   var poly = [];//[o.x, o.y+o.h];
   // fill polygon from actual data
@@ -86,7 +91,11 @@ gr.drawPolygon = function(g, data, options) {
 
   // close polygon
   line.push(o.x+o.w, o.y+o.h);
-  line.push(o.x, o.y+o.h);
+  if (options.axes || options.gridy || options.gridx) {
+    line.push(o.x-3, o.y+o.h);
+  } else {
+    line.push(o.x, o.y+o.h);
+  }
 
   // create a clone of the fist polygon
   poly = line.clone();
@@ -197,9 +206,16 @@ gr.drawPolygon = function(g, data, options) {
   g.setColor(bgCol);
   g.fillPoly(poly);
 
+  g.setColor(g.theme.fg);
+  // redraw axes over the graph
+  if (options.axes || options.gridy || options.gridx) {
+    gr.drawAxes(g,data,options);
+  }
+
   // if dots are not enabled, return plotting info
   if (!options.dots) return o;
 
+  // draw dots
   line.forEach((p, i) => {
     if (i >= data.length * 2) return;
     if (i%2 === 0) {
@@ -277,13 +293,13 @@ function draw() {
   }
   const st = Date.now();
   g.clear();
-  gr.drawPolygon(g, data, { y: 10, height: 50, border: 2, dotRadius: 3, selectDots: true });
+  gr.drawPolygon(g, data, { y: 10, height: 50, border: 2, dotRadius: 3, selectDots: true, axes: true, gridy: 5, gridx: 5 });
   console.log('drawn in', Date.now() - st);
 }
 function timed() {
   data.push(data.shift());
   g.clear();
-  gr.drawPolygon(g, data, { y: 10, height: 50, border: 2, dotRadius: 3, axes: true });
+  gr.drawPolygon(g, data, { y: 10, height: 50, border: 2, dotRadius: 3, axes: true, gridy: 1, gridx: 3 });
 }
 //setInterval(timed, 1000);
 //Bangle.on('touch', draw);
